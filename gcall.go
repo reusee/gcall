@@ -391,19 +391,27 @@ func Get(name string) (ret interface{}) {
 	parts := strings.Split(name, ".")
 	namespace := parts[0]
 	info := C.g_irepository_find_by_name(repo, gs(namespace), gs(parts[1]))
-	switch C.g_base_info_get_type(info) {
+	switch ty := C.g_base_info_get_type(info); ty {
 	case C.GI_INFO_TYPE_ENUM:
 		enumInfo := (*C.GIEnumInfo)(unsafe.Pointer(info))
 		nValues := C.g_enum_info_get_n_values(enumInfo)
 		for i := C.gint(0); i < nValues; i++ {
 			valueInfo := C.g_enum_info_get_value(enumInfo, i)
 			valueName := C.GoString((*C.char)(unsafe.Pointer(C.g_base_info_get_name((*C.GIBaseInfo)(unsafe.Pointer(valueInfo))))))
-			value := C.g_value_info_get_value(valueInfo)
+			value := int64(C.g_value_info_get_value(valueInfo))
 			if valueName == parts[2] {
 				ret = value
 			}
 			valueCache[namespace+"."+parts[1]+"."+valueName] = value
 		}
+	case C.GI_INFO_TYPE_CONSTANT:
+		var value C.GIArgument
+		constInfo := (*C.GIConstantInfo)(unsafe.Pointer(info))
+		C.g_constant_info_get_value(constInfo, &value)
+		ret = fromGArg(C.g_type_info_get_tag(C.g_constant_info_get_type(constInfo)), &value)
+		valueCache[namespace+"."+parts[1]] = ret
+	default:
+		panic(sp("not handled get type %v", ty))
 	}
-	return nil
+	return
 }

@@ -173,6 +173,8 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 				switch ty := C.g_base_info_get_type((*C.GIBaseInfo)(unsafe.Pointer(reflect.ValueOf(cinfo).Pointer()))); ty {
 				case C.GI_INFO_TYPE_OBJECT:
 					cinfo = C.g_object_info_find_method(cinfo.(*C.GIFunctionInfo), gs(subname))
+				case C.GI_INFO_TYPE_INTERFACE:
+					cinfo = C.g_interface_info_find_method(cinfo.(*C.GIInterfaceInfo), gs(subname))
 				default:
 					panic(sp("calling %s, not handle base info type %v", name, ty))
 				}

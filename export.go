@@ -12,9 +12,11 @@ import (
 )
 
 //export closureMarshal
-func closureMarshal(closure *C.GClosure, ret *C.GValue, nParams C.guint, params *C.GValue, hint, data C.gpointer) {
+func closureMarshal(closure *C.GClosure, ret *C.GValue, nParams C.guint, params *C.GValue, hint, callbackKey C.gpointer) {
 	// callback value
-	f := *((*interface{})(unsafe.Pointer(data)))
+	callbacksLock.RLock()
+	f := callbacks[*((*C.gint64)(unsafe.Pointer(callbackKey)))]
+	callbacksLock.RUnlock()
 	fValue := reflect.ValueOf(f)
 	fType := fValue.Type()
 

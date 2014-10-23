@@ -14,30 +14,44 @@ static inline GType gtype_get_fundamental(GType t) {
 
 extern void closureMarshal(GClosure*, GValue*, guint, GValue*, gpointer, gpointer);
 
-GClosure* new_closure(void *data) {
+GClosure* new_closure(gint64 *callbackKey) {
 	GClosure *closure = g_closure_new_simple(sizeof(GClosure), NULL);
-	g_closure_set_meta_marshal(closure, data, (GClosureMarshal)(closureMarshal));
+	g_closure_set_meta_marshal(closure, callbackKey, (GClosureMarshal)(closureMarshal));
 	return closure;
+}
+
+gint64* newCallbackKeyPointer(gint64 n) {
+	gint64 *p = (gint64*)malloc(sizeof(gint64));
+	*p = n;
+	return p;
 }
 
 */
 import "C"
 import (
 	"fmt"
+	"math/rand"
 	"sync"
+	"time"
 	"unsafe"
 )
 
-var refHolder []interface{}
-var refHolderLock sync.Mutex
+var (
+	callbacks     = make(map[C.gint64]interface{})
+	callbacksLock = new(sync.RWMutex)
+)
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func Connect(obj unsafe.Pointer, signal string, cb interface{}) uint64 {
-	cbp := &cb
-	refHolderLock.Lock()
-	refHolder = append(refHolder, cbp) //TODO deref
-	refHolderLock.Unlock()
-	closure := C.new_closure(unsafe.Pointer(cbp)) //TODO do not pass go pointer to c
-	id := C.g_signal_connect_closure(C.gpointer(obj), gs(signal), closure, C.gboolean(0))
+	key := C.newCallbackKeyPointer(C.gint64(rand.Int63()))
+	callbacksLock.Lock()
+	callbacks[*key] = cb
+	callbacksLock.Unlock()
+	closure := C.new_closure(key)
+	id := C.g_signal_connect_closure(C.gpointer(obj), gs(signal), closure, C.FALSE)
 	return uint64(id)
 }
 

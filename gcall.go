@@ -166,15 +166,15 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 		parts := strings.Split(name, ".")
 		namespace := parts[0]
 		var cinfo interface{}
-		for i, name := range parts[1:] {
+		for i, subname := range parts[1:] {
 			if i == 0 {
-				cinfo = C.g_irepository_find_by_name(repo, gs(namespace), gs(name))
+				cinfo = C.g_irepository_find_by_name(repo, gs(namespace), gs(subname))
 			} else {
 				switch ty := C.g_base_info_get_type((*C.GIBaseInfo)(unsafe.Pointer(reflect.ValueOf(cinfo).Pointer()))); ty {
 				case C.GI_INFO_TYPE_OBJECT:
-					cinfo = C.g_object_info_find_method(cinfo.(*C.GIFunctionInfo), gs(name))
+					cinfo = C.g_object_info_find_method(cinfo.(*C.GIFunctionInfo), gs(subname))
 				default:
-					panic(sp("not handle base info type %v", ty))
+					panic(sp("calling %s, not handle base info type %v", name, ty))
 				}
 			}
 		}

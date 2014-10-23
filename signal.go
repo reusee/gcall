@@ -79,3 +79,16 @@ func fromGValue(v *C.GValue) (ret interface{}) {
 func fromGStr(s *C.gchar) string {
 	return C.GoString((*C.char)(unsafe.Pointer(s)))
 }
+
+func toGValue(v interface{}, target *C.GValue) {
+	switch v := v.(type) {
+	case bool:
+		b := C.TRUE
+		if !v {
+			b = C.FALSE
+		}
+		C.g_value_set_boolean(target, C.gboolean(b))
+	default:
+		panic(sp("not handled go type %T", v))
+	}
+}

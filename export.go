@@ -40,15 +40,14 @@ func closureMarshal(closure *C.GClosure, ret *C.GValue, nParams C.guint, params 
 		case reflect.Interface:
 			arg = reflect.ValueOf(goValue)
 		default:
-			panic("FIXME") //TODO
 			panic(fmt.Sprintf("FIXME closure marshal: value %v to %v", goValue, fType.In(i)))
 		}
 		arguments = append(arguments, arg)
 	}
 
 	// call
-	fValue.Call(arguments[:fType.NumIn()])
-
-	//TODO set return value
-
+	retValues := fValue.Call(arguments[:fType.NumIn()])
+	if len(retValues) > 0 {
+		toGValue(retValues[0].Interface(), ret)
+	}
 }

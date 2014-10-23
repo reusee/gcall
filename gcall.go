@@ -138,6 +138,7 @@ type _Info struct {
 	Dirs       []C.GIDirection
 	ReturnType C.GITypeTag
 	OutTypes   []C.GITypeTag
+	OutDirs    []C.GIDirection
 }
 
 var fnCache = make(map[string]_Info)
@@ -159,7 +160,7 @@ func Call(name string, args ...interface{}) []interface{} {
 }
 
 func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
-	// get function info
+	// collect function info
 	var info _Info
 	var ok bool
 	if info, ok = fnCache[name]; !ok {
@@ -195,6 +196,7 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 				dirs = append(dirs, C.GI_DIRECTION_IN)
 			}
 			var outTypes []C.GITypeTag
+			var outDirs []C.GIDirection
 			nArgs := C.g_callable_info_get_n_args(callable)
 			for i := C.gint(0); i < nArgs; i++ {
 				argInfo := C.g_callable_info_get_arg(callable, i)
@@ -202,10 +204,12 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 				dirs = append(dirs, dir)
 				if dir == C.GI_DIRECTION_OUT || dir == C.GI_DIRECTION_INOUT {
 					outTypes = append(outTypes, C.g_type_info_get_tag(C.g_arg_info_get_type(argInfo)))
+					outDirs = append(outDirs, dir)
 				}
 			}
 			info.Dirs = dirs
 			info.OutTypes = outTypes
+			info.OutDirs = outDirs
 			fnCache[name] = info
 		}
 	}
@@ -213,6 +217,7 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 	// prepare arguments
 	var inArgs, outArgs []C.GIArgument
 	argIndex := 0
+	outIndex := 0
 	for _, dir := range info.Dirs {
 		switch dir {
 		case C.GI_DIRECTION_IN:
@@ -223,7 +228,15 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 			argIndex++
 		case C.GI_DIRECTION_OUT:
 			var outArg C.GIArgument
+			switch info.OutTypes[outIndex] {
+			case C.GI_TYPE_TAG_UINT32:
+				var u C.guint32
+				C.arg_set_pointer(&outArg, unsafe.Pointer(&u))
+			default: //TODO
+				panic(sp("not handled out type %v", info.OutTypes[outIndex]))
+			}
 			outArgs = append(outArgs, outArg)
+			outIndex++
 		case C.GI_DIRECTION_INOUT:
 			if argIndex >= len(args) {
 				return nil, fmt.Errorf("not enough argument for %s", name)
@@ -232,6 +245,7 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 			argIndex++
 			inArgs = append(inArgs, arg)
 			outArgs = append(outArgs, arg)
+			outIndex++
 		}
 	}
 
@@ -257,7 +271,16 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 
 	// out args
 	for i := 0; i < len(outArgs); i++ {
-		ret = append(ret, fromGArg(info.OutTypes[i], &outArgs[i]))
+		if info.OutDirs[i] == C.GI_DIRECTION_OUT {
+			switch info.OutTypes[i] {
+			case C.GI_TYPE_TAG_UINT32:
+				ret = append(ret, uint32(*((*C.guint32)(C.arg_get_pointer(&outArgs[i])))))
+			default: //TODO
+				panic(sp("not handled out type %v", info.OutTypes[i]))
+			}
+		} else {
+			ret = append(ret, fromGArg(info.OutTypes[i], &outArgs[i]))
+		}
 	}
 
 	// error

@@ -60,6 +60,10 @@ void arg_set_pointer(GIArgument *arg, void *p) {
 	arg->v_pointer = p;
 }
 
+void arg_set_string(GIArgument *arg, gchar* s) {
+	arg->v_string = s;
+}
+
 gboolean arg_get_boolean(GIArgument *arg) {
 	return arg->v_boolean;
 }
@@ -287,12 +291,14 @@ func garg(v interface{}) (ret C.GIArgument) {
 		C.arg_set_float(&ret, C.gfloat(v))
 	case float64:
 		C.arg_set_double(&ret, C.gdouble(v))
+	case string:
+		C.arg_set_string(&ret, gs(v))
 	case unsafe.Pointer:
 		C.arg_set_pointer(&ret, v)
 	case nil:
 		C.arg_set_pointer(&ret, nil)
 	default:
-		panic(sp("not handled arg type %v", v))
+		panic(sp("not handled arg type %T", v))
 	}
 	return
 }

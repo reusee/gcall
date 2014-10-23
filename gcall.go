@@ -140,7 +140,7 @@ type _Info struct {
 	OutTypes   []C.GITypeTag
 }
 
-var infoCache = make(map[string]_Info)
+var fnCache = make(map[string]_Info)
 
 func Require(ns, ver string) {
 	var err *C.GError
@@ -162,7 +162,7 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 	// get function info
 	var info _Info
 	var ok bool
-	if info, ok = infoCache[name]; !ok {
+	if info, ok = fnCache[name]; !ok {
 		parts := strings.Split(name, ".")
 		namespace := parts[0]
 		var cinfo interface{}
@@ -202,7 +202,7 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 			}
 			info.Dirs = dirs
 			info.OutTypes = outTypes
-			infoCache[name] = info
+			fnCache[name] = info
 		}
 	}
 
@@ -212,12 +212,18 @@ func Pcall(name string, args ...interface{}) (ret []interface{}, err error) {
 	for _, dir := range info.Dirs {
 		switch dir {
 		case C.GI_DIRECTION_IN:
+			if argIndex >= len(args) {
+				return nil, fmt.Errorf("not enough argument for %s", name)
+			}
 			inArgs = append(inArgs, garg(args[argIndex]))
 			argIndex++
 		case C.GI_DIRECTION_OUT:
 			var outArg C.GIArgument
 			outArgs = append(outArgs, outArg)
 		case C.GI_DIRECTION_INOUT:
+			if argIndex >= len(args) {
+				return nil, fmt.Errorf("not enough argument for %s", name)
+			}
 			arg := garg(args[argIndex])
 			argIndex++
 			inArgs = append(inArgs, arg)
@@ -347,4 +353,30 @@ func gs(s string) *C.gchar {
 	gs := (*C.gchar)(unsafe.Pointer(C.CString(s)))
 	gcharCache[s] = gs
 	return gs
+}
+
+var valueCache = make(map[string]interface{})
+
+func Get(name string) (ret interface{}) {
+	if v, ok := valueCache[name]; ok {
+		return v
+	}
+	parts := strings.Split(name, ".")
+	namespace := parts[0]
+	info := C.g_irepository_find_by_name(repo, gs(namespace), gs(parts[1]))
+	switch C.g_base_info_get_type(info) {
+	case C.GI_INFO_TYPE_ENUM:
+		enumInfo := (*C.GIEnumInfo)(unsafe.Pointer(info))
+		nValues := C.g_enum_info_get_n_values(enumInfo)
+		for i := C.gint(0); i < nValues; i++ {
+			valueInfo := C.g_enum_info_get_value(enumInfo, i)
+			valueName := C.GoString((*C.char)(unsafe.Pointer(C.g_base_info_get_name((*C.GIBaseInfo)(unsafe.Pointer(valueInfo))))))
+			value := C.g_value_info_get_value(valueInfo)
+			if valueName == parts[2] {
+				ret = value
+			}
+			valueCache[namespace+"."+parts[1]+"."+valueName] = value
+		}
+	}
+	return nil
 }

@@ -10,7 +10,7 @@ func TestAll(t *testing.T) {
 	pt("major version %v\n", Call("Gtk.get_major_version"))
 
 	Call("Gtk.init", 0, nil)
-	win := New("Gtk.Window", 0)
+	win := New("Gtk.Window", Get("Gtk.WindowType.toplevel"))
 
 	grid := New("Gtk.Grid")
 	Call("Gtk.Container.add", win, grid)
